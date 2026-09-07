@@ -186,15 +186,15 @@ input:focus { outline: 2px solid var(--purple-bright); }
 
 .game-body {
   display: flex;
-  gap: 18px;
-  padding: 18px;
-  max-width: 980px;
+  gap: 22px;
+  padding: 18px 28px;
+  max-width: 1600px;
   margin: 0 auto 235px;
   align-items: flex-start;
   flex-wrap: wrap;
 }
 
-.player-panel { flex: 0 0 240px; min-width: 220px; }
+.player-panel { flex: 0 0 280px; min-width: 240px; }
 .player-panel h3 { color: var(--text-dim); font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; }
 .score-value { font-weight: 700; color: var(--gold-bright); }
 .bid-tricks { font-size: 0.78rem; color: var(--text-dim); }
