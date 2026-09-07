@@ -128,7 +128,6 @@ input:focus { outline: 2px solid var(--purple-bright); }
 /* ---------------- Lobby ---------------- */
 
 .lobby-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 18px; }
-.header-actions { display: flex; align-items: center; gap: 8px; }
 
 .room-code { font-size: 1.8rem; font-weight: 700; letter-spacing: 0.12em; color: var(--gold-bright); }
 .room-code.small { font-size: 1rem; }
@@ -190,7 +189,7 @@ input:focus { outline: 2px solid var(--purple-bright); }
   gap: 18px;
   padding: 18px;
   max-width: 980px;
-  margin: 0 auto 120px;
+  margin: 0 auto 235px;
   align-items: flex-start;
   flex-wrap: wrap;
 }
@@ -296,12 +295,16 @@ input:focus { outline: 2px solid var(--purple-bright); }
   z-index: 50;
 }
 .hand-bar-label { font-size: 0.72rem; color: var(--text-dim); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 6px; text-align: center; }
-/* justify-content:center würde bei überlaufendem Inhalt Karten links
-   "abschneiden" (nicht mehr hin-scrollbar und nicht mehr klickbar) - daher
-   linksbündig plus etwas Innenabstand, damit wenige Karten nicht am Rand kleben. */
-.hand-list { list-style: none; margin: 0; padding: 0 calc(50% - 35px); display: flex; gap: 8px; overflow-x: auto; justify-content: flex-start; }
-.hand-list .pcard { cursor: pointer; transition: transform 0.1s ease, opacity 0.1s ease; }
-.hand-list .pcard:hover:not(.disabled) { transform: translateY(-6px); }
+/* "safe center": zentriert die Karten, wenn sie in die Breite passen (keine
+   unnötige Scrollleiste bei wenigen Karten) - läuft der Inhalt über, wird
+   automatisch auf linksbündig+scrollbar umgeschaltet, damit keine Karte am
+   Rand "abgeschnitten" und unklickbar wird. */
+.hand-list { list-style: none; margin: 0; padding: 0 14px; display: flex; gap: 10px; overflow-x: auto; overflow-y: hidden; justify-content: safe center; scrollbar-width: none; -ms-overflow-style: none; }
+.hand-list::-webkit-scrollbar { display: none; height: 0; }
+/* Karten auf der Hand deutlich größer/prominenter als die Karten auf dem
+   Tisch - wie richtige Handkarten, die man vor sich hält. */
+.hand-list .pcard { width: 120px; height: 180px; cursor: pointer; transition: transform 0.1s ease, opacity 0.1s ease; }
+.hand-list .pcard:hover:not(.disabled) { transform: translateY(-10px); }
 .hand-list .pcard[draggable="true"] { cursor: grab; }
 .hand-list .pcard[draggable="true"]:active { cursor: grabbing; }
 .hand-list .pcard.dragging { opacity: 0.35; }
@@ -350,7 +353,8 @@ input:focus { outline: 2px solid var(--purple-bright); }
 .modal-close { position: absolute; top: 14px; right: 14px; }
 
 @media (max-width: 640px) {
-  .game-body { flex-direction: column; margin-bottom: 130px; }
+  .game-body { flex-direction: column; margin-bottom: 210px; }
   .player-panel { flex: 1 1 auto; width: 100%; }
   .pcard { width: 52px; height: 74px; }
+  .hand-list .pcard { width: 98px; height: 147px; }
 }
