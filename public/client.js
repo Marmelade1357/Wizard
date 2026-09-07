@@ -7,6 +7,17 @@
   const MOUNT_PREFIX = window.location.pathname.replace(/\/[^/]*$/, '');
   const socket = io({ path: MOUNT_PREFIX + '/socket.io/' });
 
+  // Wenn diese Seite über einen Hub (z.B. games.oualid.de) unter einem
+  // Unterpfad eingebunden ist, zeigen wir einen Link zurück zur Spielauswahl
+  // (Hub-Startseite). Bei direktem Zugriff ohne Hub gibt es keine Spielauswahl,
+  // zu der man zurückkehren könnte - dann bleibt der Link versteckt.
+  if (MOUNT_PREFIX) {
+    document.querySelectorAll('#btn-back-hub-lobby, #btn-back-hub-game').forEach((a) => {
+      a.href = '/';
+      a.classList.remove('hidden');
+    });
+  }
+
   const SESSION_KEY = 'wizard_session';
 
   let session = null; // { code, playerId, token, name }

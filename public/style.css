@@ -96,6 +96,7 @@ input:focus { outline: 2px solid var(--purple-bright); }
   font-weight: 600;
   font-size: 0.95rem;
   cursor: pointer;
+  text-decoration: none;
   transition: transform 0.05s ease, filter 0.15s ease;
 }
 .btn:hover { filter: brightness(1.12); }
@@ -126,6 +127,7 @@ input:focus { outline: 2px solid var(--purple-bright); }
 /* ---------------- Lobby ---------------- */
 
 .lobby-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 18px; }
+.header-actions { display: flex; align-items: center; gap: 8px; }
 .room-code { font-size: 1.8rem; font-weight: 700; letter-spacing: 0.12em; color: var(--gold-bright); }
 .room-code.small { font-size: 1rem; }
 
