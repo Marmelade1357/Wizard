@@ -39,6 +39,7 @@ h1, h2, h3 { margin: 0 0 0.4em 0; }
 }
 
 #screen-home, #screen-lobby { align-items: center; min-height: 100vh; }
+#screen-home { flex-direction: column; gap: 14px; }
 
 #screen-game { display: block; padding: 0; min-height: 100vh; }
 
@@ -128,6 +129,7 @@ input:focus { outline: 2px solid var(--purple-bright); }
 
 .lobby-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 18px; }
 .header-actions { display: flex; align-items: center; gap: 8px; }
+
 .room-code { font-size: 1.8rem; font-weight: 700; letter-spacing: 0.12em; color: var(--gold-bright); }
 .room-code.small { font-size: 1rem; }
 
@@ -209,14 +211,27 @@ input:focus { outline: 2px solid var(--purple-bright); }
 }
 .phase-title { font-size: 1.15rem; font-weight: 700; margin-bottom: 14px; color: var(--gold-bright); }
 
+/* Der "Tisch": Fläche für die im aktuellen Stich ausgespielten Karten.
+   Sieht wie eine Kartentisch-Filzfläche aus und dient gleichzeitig als
+   Drop-Ziel, wenn man eine Karte aus der Hand hierher zieht. */
 .trick-area {
   display: flex;
   flex-wrap: wrap;
   gap: 14px;
+  align-items: center;
   justify-content: center;
-  padding: 14px 0 20px;
+  padding: 20px 16px;
   min-height: 130px;
+  position: relative;
+  border-radius: 26px;
+  background: radial-gradient(ellipse at center, #2c5c40 0%, #1d3f2b 68%, #142b1e 100%);
+  border: 6px solid #5c4126;
+  box-shadow: inset 0 2px 10px rgba(0,0,0,0.45);
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
 }
+.trick-area.is-dropzone { border-style: dashed; border-color: #7a5a34; }
+.trick-area.drop-target { border-color: var(--gold-bright); box-shadow: inset 0 2px 10px rgba(0,0,0,0.45), 0 0 0 3px rgba(244,201,93,0.45); }
+.trick-area-hint { color: rgba(255,255,255,0.55); font-style: italic; font-size: 0.85rem; }
 .trick-slot { display: flex; flex-direction: column; align-items: center; gap: 6px; }
 .trick-slot .played-by { font-size: 0.72rem; color: var(--text-dim); max-width: 76px; text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .trick-slot.winner .played-by { color: var(--gold-bright); font-weight: 700; }
@@ -256,26 +271,21 @@ input:focus { outline: 2px solid var(--purple-bright); }
 
 .waiting-note { color: var(--text-dim); font-style: italic; }
 
-/* Spielkarten */
+/* Spielkarten - echte Kartenmotive als Bild, keine CSS-Icons mehr */
 .pcard {
   width: 62px;
   height: 88px;
   border-radius: 8px;
-  background: var(--bg-alt);
+  overflow: hidden;
+  background: #000;
   border: 2px solid var(--border);
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  font-weight: 700;
-  gap: 2px;
   flex-shrink: 0;
   user-select: none;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.4);
 }
-.pcard .pcard-icon { font-size: 1.5rem; line-height: 1; }
-.pcard .pcard-value { font-size: 1.05rem; }
-.pcard.pcard-wizard { background: linear-gradient(160deg, #3a2b5c, #17102b); border-color: var(--gold); color: var(--gold-bright); }
-.pcard.pcard-jester { background: linear-gradient(160deg, #35304a, #221c34); border-color: var(--text-dim); color: var(--text-dim); }
+.pcard-img { width: 100%; height: 100%; object-fit: cover; display: block; pointer-events: none; }
+.pcard.pcard-wizard { border-color: var(--gold); }
+.pcard.pcard-jester { border-color: var(--text-dim); }
 
 .hand-bar {
   position: fixed;
@@ -290,8 +300,11 @@ input:focus { outline: 2px solid var(--purple-bright); }
    "abschneiden" (nicht mehr hin-scrollbar und nicht mehr klickbar) - daher
    linksbündig plus etwas Innenabstand, damit wenige Karten nicht am Rand kleben. */
 .hand-list { list-style: none; margin: 0; padding: 0 calc(50% - 35px); display: flex; gap: 8px; overflow-x: auto; justify-content: flex-start; }
-.hand-list .pcard { cursor: pointer; transition: transform 0.1s ease; }
+.hand-list .pcard { cursor: pointer; transition: transform 0.1s ease, opacity 0.1s ease; }
 .hand-list .pcard:hover:not(.disabled) { transform: translateY(-6px); }
+.hand-list .pcard[draggable="true"] { cursor: grab; }
+.hand-list .pcard[draggable="true"]:active { cursor: grabbing; }
+.hand-list .pcard.dragging { opacity: 0.35; }
 .hand-list .pcard.disabled { opacity: 0.35; cursor: not-allowed; }
 
 .round-result-table, .scores-table {

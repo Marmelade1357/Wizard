@@ -12,10 +12,11 @@
   // (Hub-Startseite). Bei direktem Zugriff ohne Hub gibt es keine Spielauswahl,
   // zu der man zurückkehren könnte - dann bleibt der Link versteckt.
   if (MOUNT_PREFIX) {
-    document.querySelectorAll('#btn-back-hub-lobby, #btn-back-hub-game').forEach((a) => {
-      a.href = '/';
-      a.classList.remove('hidden');
-    });
+    const backHub = document.getElementById('btn-back-hub-home');
+    if (backHub) {
+      backHub.href = '/';
+      backHub.classList.remove('hidden');
+    }
   }
 
   const SESSION_KEY = 'wizard_session';
@@ -24,6 +25,7 @@
   let latestState = null;
   let myHand = [];
   let myLegal = null; // array of legal card ids, or null wenn nicht mein Zug
+  let draggingCardId = null; // Karten-ID, die gerade per Drag&Drop gezogen wird
   let prevPhase = null;
   let roundReadyClicked = false;
 
@@ -84,27 +86,36 @@
     return (state.suits || {})[suit] || { name: suit, icon: '❔', color: '#888' };
   }
 
+  // Dateiname des gescannten Kartenbilds für eine Karte ermitteln.
+  // Zauberer-/Narr-Karten haben 4 verschiedene Motive - welches gezeigt wird,
+  // steht schon in der Karten-ID (z1..z4 / n1..n4), damit dieselbe Karte immer
+  // gleich aussieht.
+  function cardImageSrc(card) {
+    if (card.kind === 'wizard') return `cards/zauberer-${card.id.slice(1)}.jpg`;
+    if (card.kind === 'jester') return `cards/narr-${card.id.slice(1)}.jpg`;
+    return `cards/${card.suit}-${card.value}.jpg`;
+  }
+
+  function cardLabel(card, state) {
+    if (card.kind === 'wizard') return 'Zauberer';
+    if (card.kind === 'jester') return 'Narr';
+    return `${suitInfo(state, card.suit).name} ${card.value}`;
+  }
+
   function renderCardEl(card, state, opts) {
     opts = opts || {};
-    if (card.kind === 'wizard') {
-      return el('div', { class: 'pcard pcard-wizard' + (opts.extraClass ? ' ' + opts.extraClass : '') }, [
-        el('span', { class: 'pcard-icon', text: '🧙' }),
-        el('span', { class: 'pcard-value', text: 'Zauberer' }),
-      ]);
-    }
-    if (card.kind === 'jester') {
-      return el('div', { class: 'pcard pcard-jester' + (opts.extraClass ? ' ' + opts.extraClass : '') }, [
-        el('span', { class: 'pcard-icon', text: '🤡' }),
-        el('span', { class: 'pcard-value', text: 'Narr' }),
-      ]);
-    }
-    const info = suitInfo(state, card.suit);
-    const div = el('div', { class: 'pcard' + (opts.extraClass ? ' ' + opts.extraClass : '') }, [
-      el('span', { class: 'pcard-icon', text: info.icon }),
-      el('span', { class: 'pcard-value', text: String(card.value) }),
-    ]);
-    div.style.borderColor = info.color;
-    div.style.color = info.color;
+    const extra = ['pcard'];
+    if (card.kind === 'wizard') extra.push('pcard-wizard');
+    if (card.kind === 'jester') extra.push('pcard-jester');
+    if (opts.extraClass) extra.push(opts.extraClass);
+    const img = el('img', {
+      class: 'pcard-img',
+      src: cardImageSrc(card),
+      alt: cardLabel(card, state),
+      draggable: 'false',
+    });
+    const div = el('div', { class: extra.join(' ') }, [img]);
+    div.dataset.cardId = card.id;
     return div;
   }
 
@@ -371,9 +382,23 @@
       const isLegal = canPlay && myLegal && myLegal.includes(card.id);
       const cardEl = renderCardEl(card, state, { extraClass: canPlay ? (isLegal ? '' : 'disabled') : 'disabled' });
       if (isLegal) {
-        cardEl.addEventListener('click', () => {
+        const playThisCard = () => {
           myLegal = null;
           socket.emit('playCard', { cardId: card.id });
+        };
+        // Klick zum Spielen (funktioniert überall, auch am Handy) ...
+        cardEl.addEventListener('click', playThisCard);
+        // ... und zusätzlich per Maus auf den Tisch ziehen und dort ablegen.
+        cardEl.draggable = true;
+        cardEl.addEventListener('dragstart', (e) => {
+          draggingCardId = card.id;
+          cardEl.classList.add('dragging');
+          e.dataTransfer.effectAllowed = 'move';
+          try { e.dataTransfer.setData('text/plain', card.id); } catch (err) { /* Safari-Eigenheit, ignorierbar */ }
+        });
+        cardEl.addEventListener('dragend', () => {
+          draggingCardId = null;
+          cardEl.classList.remove('dragging');
         });
       }
       list.appendChild(cardEl);
@@ -436,6 +461,11 @@
   }
 
   function renderPlayingPhase(state) {
+    const myTurnToPlay = state.phase === 'playing' && state.currentTurnId === myId();
+
+    // Der "Tisch": die Fläche, auf der die ausgespielten Karten des aktuellen
+    // Stichs liegen. Wenn man am Zug ist, kann man eine Karte aus der Hand
+    // auch hierher ziehen und ablegen, statt sie nur anzutippen.
     const trickArea = el('div', { class: 'trick-area' });
     (state.currentTrick || []).forEach((play) => {
       const isWinner = state.trickResult && state.trickResult.winnerId === play.playerId;
@@ -446,11 +476,35 @@
       trickArea.appendChild(slot);
     });
 
+    if (myTurnToPlay && (state.currentTrick || []).length === 0) {
+      trickArea.appendChild(el('div', { class: 'trick-area-hint', text: 'Ziehe deine Karte hierher …' }));
+    }
+
+    if (myTurnToPlay) {
+      trickArea.classList.add('is-dropzone');
+      trickArea.addEventListener('dragover', (e) => {
+        if (!draggingCardId || !myLegal || !myLegal.includes(draggingCardId)) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        trickArea.classList.add('drop-target');
+      });
+      trickArea.addEventListener('dragleave', () => trickArea.classList.remove('drop-target'));
+      trickArea.addEventListener('drop', (e) => {
+        e.preventDefault();
+        trickArea.classList.remove('drop-target');
+        const cardId = draggingCardId || (e.dataTransfer && e.dataTransfer.getData('text/plain'));
+        if (cardId && myLegal && myLegal.includes(cardId)) {
+          myLegal = null;
+          socket.emit('playCard', { cardId });
+        }
+      });
+    }
+
     const nodes = [trickArea];
     if (state.phase === 'trickresult' && state.trickResult) {
       nodes.push(el('p', { class: 'waiting-note', text: `${playerName(state, state.trickResult.winnerId)} gewinnt den Stich!` }));
-    } else if (state.currentTurnId === myId()) {
-      nodes.push(el('p', {}, [document.createTextNode('Du bist am Zug – wähle unten eine Karte.')]));
+    } else if (myTurnToPlay) {
+      nodes.push(el('p', {}, [document.createTextNode('Du bist am Zug – ziehe eine Karte auf den Tisch oder tippe sie unten an.')]));
     } else {
       nodes.push(el('p', { class: 'waiting-note', text: `${playerName(state, state.currentTurnId)} ist am Zug …` }));
     }
