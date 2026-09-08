@@ -575,7 +575,7 @@ const TRICK_RESULT_DELAY_MS = Number(process.env.TRICK_RESULT_DELAY_MS) || 2600;
 // Zeitlimit beim Warten auf "bereit" zwischen zwei Runden - danach geht es
 // automatisch weiter, damit ein abwesender Mitspieler die Partie nicht
 // unbegrenzt blockiert.
-const ROUND_END_TIMEOUT_MS = Number(process.env.ROUND_END_TIMEOUT_MS) || 25000;
+const ROUND_END_TIMEOUT_MS = Number(process.env.ROUND_END_TIMEOUT_MS) || 5000;
 
 function randomDelay(min = BOT_DELAY_MIN, max = BOT_DELAY_MAX) {
   return min + Math.random() * (max - min);
