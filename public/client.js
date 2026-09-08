@@ -321,19 +321,22 @@
     const banner = $('trump-banner');
     banner.innerHTML = '';
     if (state.phase === 'trumpchoice') {
-      banner.appendChild(el('span', { text: '🃏 Trumpfkarte ist ein Zauberer – Trumpffarbe wird noch bestimmt …' }));
+      banner.appendChild(el('div', { class: 'trump-banner-note', text: '🃏 Trumpfkarte ist ein Zauberer – Trumpffarbe wird noch bestimmt …' }));
       return;
     }
     if (state.trumpSuit) {
       const info = suitInfo(state, state.trumpSuit);
-      const span = el('span', {}, [
-        el('span', { text: 'Trumpf: ' }),
-        el('strong', { text: `${info.icon} ${info.name}` }),
+      const label = el('div', { class: 'trump-label', text: 'Trumpf:' });
+      const value = el('div', { class: 'trump-value' }, [
+        el('span', { class: 'trump-icon', text: info.icon }),
+        el('span', { text: info.name }),
       ]);
-      span.style.color = info.color;
-      banner.appendChild(span);
+      label.style.color = info.color;
+      value.style.color = info.color;
+      banner.appendChild(label);
+      banner.appendChild(value);
     } else if (state.roundNumber) {
-      banner.appendChild(el('span', { text: state.trumpCard ? '🤡 Kein Trumpf in dieser Runde (Narr aufgedeckt).' : '— Letzte Runde: kein Trumpf.' }));
+      banner.appendChild(el('div', { class: 'trump-banner-note', text: state.trumpCard ? '🤡 Kein Trumpf in dieser Runde (Narr aufgedeckt).' : '— Letzte Runde: kein Trumpf.' }));
     }
   }
 

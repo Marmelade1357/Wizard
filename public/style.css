@@ -173,28 +173,33 @@ input:focus { outline: 2px solid var(--purple-bright); }
 .game-header-left, .game-header-right { display: flex; align-items: center; gap: 8px; }
 .round-badge { font-weight: 700; color: var(--gold-bright); }
 
+/* Große, auffällige Trumpf-Anzeige rechts neben dem Spielbereich (statt
+   einer kleinen Zeile in der Kopfzeile) - fällt als drittes Element in
+   .game-body neben Spielerliste und Spielfeld ein. */
 .trump-banner {
-  margin-top: 10px;
+  flex: 0 0 240px;
   display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 0.9rem;
-  color: var(--text-dim);
-  min-height: 1.2em;
+  flex-direction: column;
+  gap: 6px;
+  padding-top: 6px;
+  min-height: 40px;
 }
-.trump-banner strong { color: var(--text); }
+.trump-banner .trump-label { font-size: 1.1rem; font-weight: 600; color: var(--text-dim); }
+.trump-banner .trump-value { display: flex; align-items: center; gap: 10px; font-size: 1.9rem; font-weight: 800; }
+.trump-banner .trump-value .trump-icon { font-size: 2.1rem; line-height: 1; }
+.trump-banner .trump-banner-note { color: var(--text-dim); font-style: italic; max-width: 240px; }
 
 .game-body {
   display: flex;
   gap: 22px;
   padding: 18px 28px;
-  max-width: 1600px;
-  margin: 0 auto 235px;
+  max-width: 1850px;
+  margin: 0 auto 290px;
   align-items: flex-start;
   flex-wrap: wrap;
 }
 
-.player-panel { flex: 0 0 280px; min-width: 240px; }
+.player-panel { flex: 0 0 300px; min-width: 240px; }
 .player-panel h3 { color: var(--text-dim); font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; }
 .score-value { font-weight: 700; color: var(--gold-bright); }
 .bid-tricks { font-size: 0.78rem; color: var(--text-dim); }
@@ -202,6 +207,7 @@ input:focus { outline: 2px solid var(--purple-bright); }
 .phase-panel {
   flex: 1 1 420px;
   min-width: 280px;
+  max-width: 1150px;
   background: var(--panel);
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -219,8 +225,8 @@ input:focus { outline: 2px solid var(--purple-bright); }
   gap: 14px;
   align-items: center;
   justify-content: center;
-  padding: 20px 16px;
-  min-height: 130px;
+  padding: 40px 16px;
+  min-height: 280px;
   position: relative;
   border-radius: 26px;
   background: radial-gradient(ellipse at center, #2c5c40 0%, #1d3f2b 68%, #142b1e 100%);
@@ -231,9 +237,27 @@ input:focus { outline: 2px solid var(--purple-bright); }
 .trick-area.is-dropzone { border-style: dashed; border-color: #7a5a34; }
 .trick-area.drop-target { border-color: var(--gold-bright); box-shadow: inset 0 2px 10px rgba(0,0,0,0.45), 0 0 0 3px rgba(244,201,93,0.45); }
 .trick-area-hint { color: rgba(255,255,255,0.55); font-style: italic; font-size: 0.85rem; }
-.trick-slot { display: flex; flex-direction: column; align-items: center; gap: 6px; }
-.trick-slot .played-by { font-size: 0.72rem; color: var(--text-dim); max-width: 76px; text-align: center; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.trick-slot.winner .played-by { color: var(--gold-bright); font-weight: 700; }
+.trick-slot { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.trick-slot .played-by {
+  font-size: 0.78rem;
+  color: var(--text);
+  max-width: 130px;
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  background: rgba(0, 0, 0, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  padding: 3px 12px;
+  border-radius: 999px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.35);
+}
+.trick-slot.winner .played-by {
+  color: var(--gold-bright);
+  font-weight: 700;
+  background: rgba(244, 201, 93, 0.22);
+  border-color: rgba(244, 201, 93, 0.5);
+}
 
 .suit-choice { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 12px; }
 .suit-btn {
@@ -272,8 +296,8 @@ input:focus { outline: 2px solid var(--purple-bright); }
 
 /* Spielkarten - echte Kartenmotive als Bild, keine CSS-Icons mehr */
 .pcard {
-  width: 62px;
-  height: 88px;
+  width: 120px;
+  height: 180px;
   border-radius: 8px;
   overflow: hidden;
   background: #000;
@@ -303,7 +327,7 @@ input:focus { outline: 2px solid var(--purple-bright); }
 .hand-list::-webkit-scrollbar { display: none; height: 0; }
 /* Karten auf der Hand deutlich größer/prominenter als die Karten auf dem
    Tisch - wie richtige Handkarten, die man vor sich hält. */
-.hand-list .pcard { width: 120px; height: 180px; cursor: pointer; transition: transform 0.1s ease, opacity 0.1s ease; }
+.hand-list .pcard { width: 150px; height: 225px; cursor: pointer; transition: transform 0.1s ease, opacity 0.1s ease; }
 .hand-list .pcard:hover:not(.disabled) { transform: translateY(-10px); }
 .hand-list .pcard[draggable="true"] { cursor: grab; }
 .hand-list .pcard[draggable="true"]:active { cursor: grabbing; }
@@ -354,7 +378,9 @@ input:focus { outline: 2px solid var(--purple-bright); }
 
 @media (max-width: 640px) {
   .game-body { flex-direction: column; margin-bottom: 210px; }
-  .player-panel { flex: 1 1 auto; width: 100%; }
+  .player-panel { flex: 1 1 auto; width: 100%; order: -2; }
+  .trump-banner { flex: 1 1 auto; width: 100%; order: -1; padding-top: 0; }
   .pcard { width: 52px; height: 74px; }
   .hand-list .pcard { width: 98px; height: 147px; }
+  .trick-area { min-height: 130px; padding: 20px 16px; }
 }
