@@ -171,6 +171,9 @@
   $('btn-add-bot').addEventListener('click', () => socket.emit('addBot'));
   $('btn-fill-bots').addEventListener('click', () => socket.emit('fillBots'));
   $('btn-start').addEventListener('click', () => socket.emit('startGame'));
+  $('input-rounds').addEventListener('change', (e) => {
+    socket.emit('setRoundsLimit', { value: e.target.value });
+  });
 
   $('btn-show-scores').addEventListener('click', () => {
     if (latestState) renderScoresModal(latestState);
@@ -277,6 +280,22 @@
       if (state.players.length < state.minPlayers) show(fillBtn); else hide(fillBtn);
     } else {
       hide(botControls);
+    }
+
+    const roundsSetting = $('lobby-rounds-setting');
+    const roundsDisplay = $('lobby-rounds-display');
+    const roundsInput = $('input-rounds');
+    const roundsMax = $('lobby-rounds-max');
+    if (isHost) {
+      show(roundsSetting);
+      hide(roundsDisplay);
+      roundsInput.max = state.maxPossibleRounds;
+      if (document.activeElement !== roundsInput) roundsInput.value = state.roundsLimit;
+      roundsMax.textContent = `(max. ${state.maxPossibleRounds} bei ${state.players.length} Spielern)`;
+    } else {
+      hide(roundsSetting);
+      show(roundsDisplay);
+      roundsDisplay.textContent = `Runden: ${Math.min(state.roundsLimit, state.maxPossibleRounds)}`;
     }
 
     const startBtn = $('btn-start');

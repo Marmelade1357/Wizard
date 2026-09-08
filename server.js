@@ -129,6 +129,7 @@ function createRoom() {
     dealerIndex: 0,
     roundNumber: 0, // 1..maxRounds
     maxRounds: 0,
+    roundsLimit: 20, // vom Host gewaehlt, wird bei Spielstart auf maxRoundsFor(n) begrenzt
     cardsThisRound: 0,
     hands: {}, // playerId -> [card, ...]
     trumpCard: null,
@@ -265,6 +266,8 @@ function publicState(room) {
     suits: SUIT_INFO,
     roundNumber: room.roundNumber,
     maxRounds: room.maxRounds,
+    roundsLimit: room.roundsLimit,
+    maxPossibleRounds: maxRoundsFor(room.players.length),
     cardsThisRound: room.cardsThisRound,
     dealerId: d ? d.id : null,
     trumpCard: room.trumpCard,
@@ -307,7 +310,7 @@ function broadcastState(room) {
 
 function startGame(room) {
   const n = room.players.length;
-  room.maxRounds = maxRoundsFor(n);
+  room.maxRounds = Math.min(room.roundsLimit, maxRoundsFor(n));
   room.roundNumber = 0;
   room.dealerIndex = Math.floor(Math.random() * n);
   room.scores = {};
@@ -787,6 +790,16 @@ io.on('connection', (socket) => {
     if (socket.data.playerId !== room.hostId) return;
     while (room.players.length < MIN_PLAYERS) addBot(room);
     touchRoom(room);
+    broadcastState(room);
+  });
+
+  socket.on('setRoundsLimit', ({ value }) => {
+    const room = rooms.get(socket.data.roomCode);
+    if (!room || room.phase !== 'lobby') return;
+    if (socket.data.playerId !== room.hostId) return;
+    const n = Math.round(Number(value));
+    if (!Number.isFinite(n)) return;
+    room.roundsLimit = Math.max(1, Math.min(60, n));
     broadcastState(room);
   });
 
