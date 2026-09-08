@@ -158,9 +158,20 @@ input:focus { outline: 2px solid var(--purple-bright); }
   height: 26px;
   cursor: pointer;
 }
-.remove-bot-btn.confirm { background: var(--danger); color: white; border-color: var(--danger); }
+.remove-bot-btn.confirm {
+  background: var(--danger);
+  color: white;
+  border-color: var(--danger);
+  width: auto;
+  padding: 0 10px;
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
 
 .bot-controls { display: flex; gap: 8px; margin-bottom: 6px; flex-wrap: wrap; }
+
+.rounds-setting { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.rounds-setting input { width: 70px; }
 
 /* ---------------- Spiel ---------------- */
 

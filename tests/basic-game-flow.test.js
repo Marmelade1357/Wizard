@@ -1,7 +1,7 @@
 // Regressionstest für den kompletten Spielablauf: Raum erstellen, mit Bots
-// auffüllen, Spiel starten und bis zum Spielende durchspielen (3 Spieler,
-// also 20 Runden). Prüft vor allem, dass der Server dabei nicht abstürzt
-// oder hängen bleibt, und dass am Ende ein konsistentes Ergebnis steht.
+// auffüllen, Rundenlimit einstellen, Spiel starten und bis zum Spielende
+// durchspielen. Prüft vor allem, dass der Server dabei nicht abstürzt oder
+// hängen bleibt, und dass am Ende ein konsistentes Ergebnis steht.
 
 const { startServer, stopServer, connectClient, emitAsync, waitForState, attachAutopilot, assert } = require('./helpers');
 
@@ -30,14 +30,22 @@ async function main() {
     const lobbyState = await waitForState(host, (s) => s.players.length === 3);
     assert(lobbyState.players.length === 3, 'Raum sollte nach fillBots 3 Spieler haben (Minimum)');
     assert(lobbyState.maxPlayers === 6, 'maxPlayers sollte 6 sein');
+    assert(lobbyState.roundsLimit === 20, `Standard-Rundenlimit sollte 20 sein, war aber ${lobbyState.roundsLimit}`);
+    assert(lobbyState.maxPossibleRounds === 20, `Bei 3 Spielern sollten maximal 20 Runden moeglich sein, waren aber ${lobbyState.maxPossibleRounds}`);
+
+    // Host stellt ein kuerzeres Spiel ein (prueft setRoundsLimit) - macht den Test
+    // nebenbei auch deutlich schneller als ein volles 20-Runden-Spiel.
+    host.emit('setRoundsLimit', { value: 5 });
+    const limitedState = await waitForState(host, (s) => s.roundsLimit === 5);
+    assert(limitedState.roundsLimit === 5, `roundsLimit sollte nach setRoundsLimit(5) 5 sein, war aber ${limitedState.roundsLimit}`);
 
     host.emit('startGame');
     await waitForState(host, (s) => s.phase !== 'lobby');
 
-    const finalState = await waitForState(host, (s) => s.phase === 'gameover', 180000);
+    const finalState = await waitForState(host, (s) => s.phase === 'gameover', 60000);
 
-    assert(finalState.maxRounds === 20, `Bei 3 Spielern sollten es 20 Runden sein, waren aber ${finalState.maxRounds}`);
-    assert(finalState.history.length === 20, `Es sollten 20 Runden-Einträge in der Historie stehen, waren aber ${finalState.history.length}`);
+    assert(finalState.maxRounds === 5, `Nach setRoundsLimit(5) sollten es 5 Runden sein, waren aber ${finalState.maxRounds}`);
+    assert(finalState.history.length === 5, `Es sollten 5 Runden-Einträge in der Historie stehen, waren aber ${finalState.history.length}`);
     assert(Array.isArray(finalState.winnerIds) && finalState.winnerIds.length >= 1, 'Es sollte mindestens einen Gewinner geben');
 
     const ids = finalState.players.map((p) => p.id);
