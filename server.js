@@ -147,6 +147,7 @@ function createRoom() {
     history: [], // [{ round, entries: { playerId: {bid, tricks, points, total} } }]
     roundReady: new Set(),
     roundEndTimer: null,
+    roundEndDeadline: null, // Epoch-ms, bis wann automatisch weitergegangen wird (oder null)
     trickTimer: null,
     winnerIds: null,
     logs: [],
@@ -281,6 +282,7 @@ function publicState(room) {
     scores: room.scores,
     history: room.history,
     roundReady: Array.from(room.roundReady),
+    roundEndDeadline: room.roundEndDeadline,
     winnerIds: room.winnerIds,
     logs: room.logs.slice(-30),
   };
@@ -307,6 +309,10 @@ function broadcastState(room) {
 
 function startGame(room) {
   const n = room.players.length;
+  // Zufällige Sitzreihenfolge für diese Partie - unabhängig davon, in welcher
+  // Reihenfolge die Spieler dem Raum beigetreten sind. hostId/Sockets sind
+  // über die id verknüpft, nicht über die Array-Position, daher unbedenklich.
+  room.players = shuffle(room.players);
   room.maxRounds = maxRoundsFor(n);
   room.roundNumber = 0;
   room.dealerIndex = Math.floor(Math.random() * n);
@@ -461,8 +467,30 @@ function finishRound(room) {
   // Bots sind sofort bereit für die nächste Runde.
   room.players.filter((p) => p.isBot).forEach((p) => room.roundReady.add(p.id));
 
+  // Falls noch verbundene menschliche Spieler auf "bereit" klicken müssen,
+  // läuft ein Zeitlimit mit - danach geht es automatisch weiter, damit ein
+  // abwesender Mitspieler die Runde nicht unbegrenzt blockiert.
+  const connectedHumans = room.players.filter((p) => !p.isBot && p.connected);
+  const stillWaiting = !connectedHumans.every((p) => room.roundReady.has(p.id));
+  if (stillWaiting) startRoundEndTimer(room);
+
   broadcastState(room);
   maybeAdvanceRound(room);
+}
+
+function startRoundEndTimer(room) {
+  if (room.roundEndTimer) clearTimeout(room.roundEndTimer);
+  room.roundEndDeadline = Date.now() + ROUND_END_TIMEOUT_MS;
+  room.roundEndTimer = setTimeout(() => {
+    if (!rooms.has(room.code)) return;
+    if (room.phase !== 'roundend') return;
+    log(room, 'Zeitlimit erreicht – weiter zur nächsten Runde.');
+    room.players.forEach((p) => room.roundReady.add(p.id));
+    room.roundEndTimer = null;
+    room.roundEndDeadline = null;
+    touchRoom(room);
+    advanceRound(room);
+  }, ROUND_END_TIMEOUT_MS);
 }
 
 function maybeAdvanceRound(room) {
@@ -471,6 +499,7 @@ function maybeAdvanceRound(room) {
   const allReady = connectedHumans.every((p) => room.roundReady.has(p.id));
   if (!allReady) return;
   if (room.roundEndTimer) { clearTimeout(room.roundEndTimer); room.roundEndTimer = null; }
+  room.roundEndDeadline = null;
   advanceRound(room);
 }
 
@@ -543,6 +572,10 @@ function addBot(room) {
 const BOT_DELAY_MIN = Number(process.env.BOT_DELAY_MIN_MS) || 1100;
 const BOT_DELAY_MAX = Number(process.env.BOT_DELAY_MAX_MS) || 2400;
 const TRICK_RESULT_DELAY_MS = Number(process.env.TRICK_RESULT_DELAY_MS) || 2600;
+// Zeitlimit beim Warten auf "bereit" zwischen zwei Runden - danach geht es
+// automatisch weiter, damit ein abwesender Mitspieler die Partie nicht
+// unbegrenzt blockiert.
+const ROUND_END_TIMEOUT_MS = Number(process.env.ROUND_END_TIMEOUT_MS) || 25000;
 
 function randomDelay(min = BOT_DELAY_MIN, max = BOT_DELAY_MAX) {
   return min + Math.random() * (max - min);
@@ -829,6 +862,8 @@ io.on('connection', (socket) => {
     if (socket.data.playerId !== room.hostId) return;
     if (room.trickTimer) clearTimeout(room.trickTimer);
     if (room.roundEndTimer) clearTimeout(room.roundEndTimer);
+    room.roundEndTimer = null;
+    room.roundEndDeadline = null;
     room.phase = 'lobby';
     room.hands = {};
     room.trumpCard = null;
@@ -860,10 +895,15 @@ io.on('connection', (socket) => {
   });
 });
 
-server.listen(PORT, () => {
-  console.log(`Wizard läuft auf Port ${PORT}`);
-  console.log(`Lokal öffnen unter: http://localhost:${PORT}`);
-});
+// Nur beim direkten Start ("node server.js") tatsächlich einen Port öffnen -
+// nicht, wenn diese Datei nur per require() für Unit-Tests der exportierten
+// Hilfsfunktionen (siehe module.exports unten) eingebunden wird.
+if (require.main === module) {
+  server.listen(PORT, () => {
+    console.log(`Wizard läuft auf Port ${PORT}`);
+    console.log(`Lokal öffnen unter: http://localhost:${PORT}`);
+  });
+}
 
 module.exports = {
   buildDeck, shuffle, resolveTrick, ledSuitOfTrick, legalCardsFor,

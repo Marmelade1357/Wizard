@@ -28,6 +28,11 @@
   let draggingCardId = null; // Karten-ID, die gerade per Drag&Drop gezogen wird
   let prevPhase = null;
   let roundReadyClicked = false;
+  let roundEndCountdownInterval = null;
+
+  function stopRoundEndCountdown() {
+    if (roundEndCountdownInterval) { clearInterval(roundEndCountdownInterval); roundEndCountdownInterval = null; }
+  }
 
   // ---------------------------------------------------------------------
   // Helpers
@@ -216,6 +221,7 @@
 
   function render(state) {
     if (state.phase === 'roundend' && prevPhase !== 'roundend') roundReadyClicked = false;
+    if (state.phase !== 'roundend') stopRoundEndCountdown();
     prevPhase = state.phase;
 
     if (state.phase === 'lobby') {
@@ -544,7 +550,23 @@
       btn.addEventListener('click', () => { socket.emit('readyNextRound'); });
       nodes.push(btn);
     }
+    if (state.roundEndDeadline) {
+      nodes.push(el('p', { id: 'round-end-countdown', class: 'hint round-end-countdown' }));
+    }
     setPhase(`Runde ${lastRound ? lastRound.round : state.roundNumber} ausgewertet`, nodes);
+
+    stopRoundEndCountdown();
+    if (state.roundEndDeadline) {
+      const deadline = state.roundEndDeadline;
+      const update = () => {
+        const node = $('round-end-countdown');
+        if (!node) { stopRoundEndCountdown(); return; }
+        const secs = Math.max(0, Math.ceil((deadline - Date.now()) / 1000));
+        node.textContent = `Weiter in ${secs}s, falls nicht alle bereit sind …`;
+      };
+      update();
+      roundEndCountdownInterval = setInterval(update, 500);
+    }
   }
 
   function renderGameOverPhase(state) {
