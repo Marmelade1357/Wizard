@@ -365,7 +365,26 @@
     }
   }
 
+  // Summe aller bisher abgegebenen Gebote der laufenden Runde - hilft
+  // Spielern beim Vorhersagen abzuschätzen, ob insgesamt mehr oder weniger
+  // Stiche getippt wurden, als es in dieser Runde überhaupt gibt.
+  function renderBidTotal(state) {
+    const totalEl = $('bid-total');
+    if (!totalEl) return;
+    const relevant = state.roundNumber
+      && ['bidding', 'playing', 'trickresult', 'roundend'].includes(state.phase);
+    if (!relevant) { totalEl.textContent = ''; return; }
+    const bids = state.bids || {};
+    const placed = state.players.map((p) => bids[p.id]).filter((v) => v !== null && v !== undefined);
+    const total = placed.reduce((sum, v) => sum + v, 0);
+    const allPlaced = placed.length === state.players.length;
+    totalEl.textContent = allPlaced
+      ? `Gesamt gewettet: ${total} von ${state.cardsThisRound} Stich${state.cardsThisRound === 1 ? '' : 'en'}`
+      : `Gesamt gewettet: ${total} (noch nicht alle getippt)`;
+  }
+
   function renderPlayerPanel(state) {
+    renderBidTotal(state);
     const list = $('game-players');
     list.innerHTML = '';
     const activeId = state.phase === 'bidding' ? state.currentBidderId

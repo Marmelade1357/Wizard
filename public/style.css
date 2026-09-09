@@ -212,6 +212,7 @@ input:focus { outline: 2px solid var(--purple-bright); }
 
 .player-panel { flex: 0 0 300px; min-width: 240px; }
 .player-panel h3 { color: var(--text-dim); font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.05em; }
+.bid-total { font-size: 0.8rem; color: var(--gold-bright); font-weight: 600; margin: -4px 0 10px; min-height: 1.1em; }
 .score-value { font-weight: 700; color: var(--gold-bright); }
 .bid-tricks { font-size: 0.78rem; color: var(--text-dim); }
 
