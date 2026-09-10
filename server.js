@@ -130,6 +130,7 @@ function createRoom() {
     roundNumber: 0, // 1..maxRounds
     maxRounds: 0,
     roundsLimit: 20, // vom Host gewaehlt, wird bei Spielstart auf maxRoundsFor(n) begrenzt
+    afkTimeoutEnabled: true, // vom Host in der Lobby an-/abschaltbar
     cardsThisRound: 0,
     hands: {}, // playerId -> [card, ...]
     trumpCard: null,
@@ -268,6 +269,7 @@ function publicState(room) {
     roundNumber: room.roundNumber,
     maxRounds: room.maxRounds,
     roundsLimit: room.roundsLimit,
+    afkTimeoutEnabled: room.afkTimeoutEnabled,
     maxPossibleRounds: maxRoundsFor(room.players.length),
     cardsThisRound: room.cardsThisRound,
     dealerId: d ? d.id : null,
@@ -582,6 +584,10 @@ const TRICK_RESULT_DELAY_MS = Number(process.env.TRICK_RESULT_DELAY_MS) || 2600;
 // automatisch weiter, damit ein abwesender Mitspieler die Partie nicht
 // unbegrenzt blockiert.
 const ROUND_END_TIMEOUT_MS = Number(process.env.ROUND_END_TIMEOUT_MS) || 5000;
+// AFK-Timeout für verbundene, aber untätige Menschen bei Trumpfwahl, Ansage
+// und Kartenspiel (z. B. gesperrtes Handy) - per Lobby-Einstellung
+// abschaltbar (room.afkTimeoutEnabled).
+const AFK_TIMEOUT_MS = Number(process.env.AFK_TIMEOUT_MS) || 60000;
 
 function randomDelay(min = BOT_DELAY_MIN, max = BOT_DELAY_MAX) {
   return min + Math.random() * (max - min);
@@ -647,40 +653,57 @@ function decideBotCard(room, bot) {
 function scheduleBotTurnIfNeeded(room) {
   if (room.phase === 'trumpchoice') {
     const chooser = findPlayer(room, room.trumpChoiceById);
-    if (chooser && chooser.isBot) {
-      const expected = room.trumpChoiceById;
-      setTimeout(() => {
-        if (!rooms.has(room.code)) return;
-        if (room.phase !== 'trumpchoice' || room.trumpChoiceById !== expected) return;
-        const suit = decideBotTrumpChoice(room.hands[chooser.id] || []);
-        handleChooseTrump(room, chooser.id, suit);
-      }, randomDelay());
-    }
+    if (!chooser) return;
+    const isConnectedHuman = !chooser.isBot && chooser.connected;
+    // Ein verbundener Mensch bekommt nur dann einen Auto-Zug-Timer, wenn der
+    // Host das AFK-Timeout nicht abgeschaltet hat - eine getrennte Person
+    // oder ein Bot darf dagegen nie dauerhaft blockieren.
+    if (isConnectedHuman && !room.afkTimeoutEnabled) return;
+    const expected = room.trumpChoiceById;
+    const delay = isConnectedHuman ? AFK_TIMEOUT_MS : randomDelay();
+    setTimeout(() => {
+      if (!rooms.has(room.code)) return;
+      if (room.phase !== 'trumpchoice' || room.trumpChoiceById !== expected) return;
+      // Für Bots wie für abwesende/untätige Menschen gleichermaßen: die
+      // Farbe, die in der eigenen Hand am häufigsten vorkommt - eine
+      // neutrale, nur auf die eigenen Karten gestützte Wahl.
+      const suit = decideBotTrumpChoice(room.hands[chooser.id] || []);
+      handleChooseTrump(room, chooser.id, suit);
+    }, delay);
   } else if (room.phase === 'bidding') {
     const bidder = currentBidder(room);
-    if (bidder && bidder.isBot) {
-      const pointerAtSchedule = room.bidPointer;
-      setTimeout(() => {
-        if (!rooms.has(room.code)) return;
-        if (room.phase !== 'bidding' || room.bidPointer !== pointerAtSchedule) return;
-        const value = estimateBotBid(room.hands[bidder.id] || [], room.trumpSuit);
-        handleBid(room, bidder.id, value);
-      }, randomDelay());
-    }
+    if (!bidder) return;
+    const isConnectedHuman = !bidder.isBot && bidder.connected;
+    if (isConnectedHuman && !room.afkTimeoutEnabled) return;
+    const pointerAtSchedule = room.bidPointer;
+    const delay = isConnectedHuman ? AFK_TIMEOUT_MS : randomDelay();
+    setTimeout(() => {
+      if (!rooms.has(room.code)) return;
+      if (room.phase !== 'bidding' || room.bidPointer !== pointerAtSchedule) return;
+      // Abwesende/untätige Menschen sagen automatisch IMMER 0 Stiche vorher -
+      // ein sicherer Standardwert statt einer geratenen Einschätzung der
+      // eigenen Hand im Namen der abwesenden Person.
+      const value = bidder.isBot ? estimateBotBid(room.hands[bidder.id] || [], room.trumpSuit) : 0;
+      handleBid(room, bidder.id, value);
+    }, delay);
   } else if (room.phase === 'playing') {
     const turnPlayer = currentTurnPlayer(room);
-    if (turnPlayer && turnPlayer.isBot) {
-      const trickLenAtSchedule = room.currentTrick.length;
-      const turnIdxAtSchedule = room.currentTurnIndex;
-      setTimeout(() => {
-        if (!rooms.has(room.code)) return;
-        if (room.phase !== 'playing') return;
-        if (room.currentTurnIndex !== turnIdxAtSchedule || room.currentTrick.length !== trickLenAtSchedule) return;
-        const card = decideBotCard(room, turnPlayer);
-        if (!card) return;
-        handlePlayCard(room, turnPlayer.id, card.id);
-      }, randomDelay());
-    }
+    if (!turnPlayer) return;
+    const isConnectedHuman = !turnPlayer.isBot && turnPlayer.connected;
+    if (isConnectedHuman && !room.afkTimeoutEnabled) return;
+    const trickLenAtSchedule = room.currentTrick.length;
+    const turnIdxAtSchedule = room.currentTurnIndex;
+    const delay = isConnectedHuman ? AFK_TIMEOUT_MS : randomDelay();
+    setTimeout(() => {
+      if (!rooms.has(room.code)) return;
+      if (room.phase !== 'playing') return;
+      if (room.currentTurnIndex !== turnIdxAtSchedule || room.currentTrick.length !== trickLenAtSchedule) return;
+      // Abwesende/untätige Menschen spielen automatisch die erste regelkonforme
+      // Karte - keine taktische Entscheidung im Namen der abwesenden Person.
+      const card = turnPlayer.isBot ? decideBotCard(room, turnPlayer) : legalCardsFor(room, turnPlayer.id)[0];
+      if (!card) return;
+      handlePlayCard(room, turnPlayer.id, card.id);
+    }, delay);
   } else if (room.phase === 'roundend') {
     maybeAdvanceRound(room);
   }
@@ -836,6 +859,15 @@ io.on('connection', (socket) => {
     const n = Math.round(Number(value));
     if (!Number.isFinite(n)) return;
     room.roundsLimit = Math.max(1, Math.min(60, n));
+    broadcastState(room);
+  });
+
+  socket.on('setAfkTimeoutEnabled', ({ enabled }) => {
+    const room = rooms.get(socket.data.roomCode);
+    if (!room || room.phase !== 'lobby') return;
+    if (socket.data.playerId !== room.hostId) return;
+    room.afkTimeoutEnabled = !!enabled;
+    touchRoom(room);
     broadcastState(room);
   });
 

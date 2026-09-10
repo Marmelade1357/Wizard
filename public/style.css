@@ -173,6 +173,10 @@ input:focus { outline: 2px solid var(--purple-bright); }
 .rounds-setting { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
 .rounds-setting input { width: 70px; }
 
+.lobby-settings { margin-top: 10px; }
+.checkbox-label { display: flex; align-items: center; gap: 6px; color: var(--text); font-size: 0.9rem; cursor: pointer; }
+.checkbox-label input { width: auto; }
+
 /* ---------------- Spiel ---------------- */
 
 .game-header {

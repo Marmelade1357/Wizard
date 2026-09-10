@@ -45,6 +45,45 @@
   function showScreen(id) {
     document.querySelectorAll('.screen').forEach((s) => hide(s));
     show($(id));
+    if (id === 'screen-home') releaseWakeLock(); else requestWakeLock();
+  }
+
+  // ---------------------------------------------------------------------
+  // Screen Wake Lock - verhindert, dass sich das Handy während des Spiels
+  // von selbst abschaltet/sperrt. Rein additiv: fehlt die API oder wird die
+  // Anfrage abgelehnt (z.B. Tab im Hintergrund), passiert einfach nichts.
+  // ---------------------------------------------------------------------
+  let wakeLock = null;
+  async function requestWakeLock() {
+    if (!('wakeLock' in navigator)) return;
+    try {
+      wakeLock = await navigator.wakeLock.request('screen');
+      wakeLock.addEventListener('release', () => { wakeLock = null; });
+    } catch (e) { /* z.B. Tab nicht sichtbar oder nicht unterstützt - ignorieren */ }
+  }
+  function releaseWakeLock() {
+    if (wakeLock) { wakeLock.release().catch(() => {}); wakeLock = null; }
+  }
+  document.addEventListener('visibilitychange', () => {
+    const homeScreen = document.getElementById('screen-home');
+    const onHomeScreen = homeScreen && !homeScreen.classList.contains('hidden');
+    if (document.visibilityState === 'visible' && !onHomeScreen) requestWakeLock();
+  });
+
+  // Zwei-Klick-Bestätigung, analog zum bestehenden "Bot entfernen"-Muster -
+  // verhindert, dass ein Fehltipp auf "Verlassen" sofort den eigenen Platz
+  // (und Punktestand) aufgibt.
+  function attachConfirmClick(btn, onConfirm) {
+    if (!btn) return;
+    const originalText = btn.textContent;
+    let confirmTimer = null;
+    const reset = () => { clearTimeout(confirmTimer); confirmTimer = null; btn.classList.remove('danger'); btn.textContent = originalText; };
+    btn.addEventListener('click', () => {
+      if (confirmTimer) { reset(); onConfirm(); return; }
+      btn.classList.add('danger');
+      btn.textContent = 'Sicher?';
+      confirmTimer = setTimeout(reset, 3000);
+    });
   }
 
   let toastTimer = null;
@@ -159,14 +198,14 @@
     });
   });
 
-  $('btn-leave-lobby').addEventListener('click', () => {
+  attachConfirmClick($('btn-leave-lobby'), () => {
     socket.emit('leaveRoom');
     clearSession();
     latestState = null;
     showScreen('screen-home');
   });
 
-  $('btn-leave-game').addEventListener('click', () => {
+  attachConfirmClick($('btn-leave-game'), () => {
     socket.emit('leaveRoom');
     clearSession();
     latestState = null;
@@ -176,6 +215,7 @@
   $('btn-add-bot').addEventListener('click', () => socket.emit('addBot'));
   $('btn-fill-bots').addEventListener('click', () => socket.emit('fillBots'));
   $('btn-start').addEventListener('click', () => socket.emit('startGame'));
+  $('setting-afk-timeout').addEventListener('change', (e) => socket.emit('setAfkTimeoutEnabled', { enabled: e.target.checked }));
   $('input-rounds').addEventListener('change', (e) => {
     socket.emit('setRoundsLimit', { value: e.target.value });
   });
@@ -302,6 +342,23 @@
       hide(roundsSetting);
       show(roundsDisplay);
       roundsDisplay.textContent = `Runden: ${Math.min(state.roundsLimit, state.maxPossibleRounds)}`;
+    }
+
+    const settingsBox = $('lobby-settings');
+    const settingsDisplay = $('lobby-settings-display');
+    const afkEnabled = state.afkTimeoutEnabled !== false;
+    if (isHost) {
+      show(settingsBox);
+      hide(settingsDisplay);
+      $('setting-afk-timeout').checked = afkEnabled;
+    } else {
+      hide(settingsBox);
+      if (afkEnabled) {
+        settingsDisplay.textContent = '⏱️ Auto-Zug nach 60s Inaktivität aktiv.';
+        show(settingsDisplay);
+      } else {
+        hide(settingsDisplay);
+      }
     }
 
     const startBtn = $('btn-start');
