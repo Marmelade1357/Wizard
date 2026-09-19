@@ -5,6 +5,12 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>Wizard – Online</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%A7%99%3C/text%3E%3C/svg%3E" />
+<meta name="theme-color" content="#100b1e" />
+<link rel="manifest" href="manifest.webmanifest" />
+<link rel="apple-touch-icon" href="apple-touch-icon.png" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-title" content="Wizard" />
 <link rel="stylesheet" href="style.css" />
 </head>
 <body>
@@ -49,6 +55,7 @@
       <div>
         <div class="eyebrow">Raum-Code – an Freunde weitergeben</div>
         <div id="lobby-code" class="room-code">----</div>
+        <button id="btn-share-link" class="btn secondary small" type="button">🔗 Einladungslink teilen</button>
       </div>
       <button id="btn-leave-lobby" class="btn ghost small">Verlassen</button>
     </div>
@@ -69,13 +76,9 @@
     </div>
     <p id="lobby-rounds-display" class="hint hidden"></p>
 
-    <div id="lobby-settings" class="lobby-settings hidden">
-      <label class="checkbox-label"><input type="checkbox" id="setting-afk-timeout" checked> ⏱️ Nach 60s Inaktivität automatisch weitermachen (Trumpfwahl/Ansage/Karte)</label>
-    </div>
-    <p id="lobby-settings-display" class="hint hidden"></p>
-
     <p id="lobby-status" class="hint"></p>
     <button id="btn-start" class="btn primary hidden">Spiel starten</button>
+    <button id="btn-show-rules-lobby" class="btn ghost small rules-btn" type="button">📜 Regeln ansehen</button>
   </div>
 </section>
 
@@ -85,9 +88,11 @@
     <div class="game-header-top">
       <div class="game-header-left">
         <span class="room-code small" id="game-code"></span>
-        <button id="btn-show-scores" class="btn ghost small">📜 Punkteblock</button>
+        <button id="btn-show-scores" class="btn ghost small">📊 Punkteblock</button>
+        <button id="btn-show-lasttrick" class="btn ghost small" disabled>🃏 Letzter Stich</button>
       </div>
       <div class="game-header-right">
+        <button id="btn-show-rules" class="btn ghost small" type="button">📜 Regeln</button>
         <span id="round-badge" class="round-badge"></span>
         <button id="btn-leave-game" class="btn ghost small">Verlassen</button>
       </div>
@@ -110,7 +115,7 @@
   </div>
 
   <div id="hand-bar" class="hand-bar hidden">
-    <div class="hand-bar-label">Deine Karten</div>
+    <div class="hand-bar-label">Deine Karten <label class="prepick-toggle" title="Karte schon vor deinem Zug antippen – sie wird automatisch gespielt, sobald du dran bist"><input type="checkbox" id="toggle-prepick"> Vorauswahl</label></div>
     <ul id="hand-list" class="hand-list"></ul>
   </div>
 </section>
@@ -121,6 +126,38 @@
     <button id="btn-close-scores-modal" class="btn ghost small modal-close">✕</button>
     <h2>📜 Der Block der Wahrheit</h2>
     <div id="scores-table-wrap" class="scores-table-wrap"></div>
+  </div>
+</div>
+
+<!-- ============ LETZTER STICH MODAL ============ -->
+<div id="lasttrick-modal" class="modal hidden">
+  <div class="modal-content">
+    <button id="btn-close-lasttrick-modal" class="btn ghost small modal-close">✕</button>
+    <h2>🃏 Letzter Stich</h2>
+    <p id="lasttrick-info" class="waiting-note"></p>
+    <div id="lasttrick-cards" class="trick-area"></div>
+  </div>
+</div>
+
+<!-- ============ REGELN MODAL ============ -->
+<div id="rules-modal" class="modal hidden">
+  <div class="modal-content rules-modal-content">
+    <button id="btn-close-rules-modal" class="btn ghost small modal-close">✕</button>
+    <h2>📜 Regeln – Wizard</h2>
+    <div class="rules-text">
+      <h3>Ziel</h3>
+      <p>In jeder Runde sagst du vorher an, wie viele Stiche du machst. Punkte gibt es nur, wenn du dich richtig einschätzt. Wer nach der letzten Runde die meisten Punkte hat, gewinnt.</p>
+      <h3>Karten</h3>
+      <p>60 Karten: vier Farben (Blau, Grün, Rot, Gelb) mit den Werten 1–13, dazu 4 <b>Zauberer</b> und 4 <b>Narren</b>. In Runde 1 bekommt jede:r 1 Karte, in Runde 2 zwei usw. – bis alle Karten verteilt sind (60 ÷ Spielerzahl Runden).</p>
+      <h3>Trumpf</h3>
+      <p>Nach dem Austeilen wird die oberste Karte des Restdecks aufgedeckt: Ihre Farbe ist Trumpf. Ist es ein Zauberer, wählt der Geber die Trumpffarbe; bei einem Narren gibt es keinen Trumpf. In der letzten Runde bleibt keine Karte übrig – dann gibt es ebenfalls keinen Trumpf.</p>
+      <h3>Vorhersage</h3>
+      <p>Reihum – links vom Geber beginnend – sagt jede:r an, wie viele Stiche er oder sie macht. Die Tipps vor dir siehst du hervorgehoben.</p>
+      <h3>Stichspiel</h3>
+      <p>Die Person links vom Geber spielt aus. Es gilt <b>Farbzwang</b>: Wer die ausgespielte Farbe hat, muss sie bedienen. Zauberer und Narren dürfen immer gespielt werden. Der <b>erste Zauberer</b> im Stich gewinnt ihn. Sonst gewinnt der höchste Trumpf, sonst die höchste Karte der ausgespielten Farbe. Narren verlieren immer (liegen nur Narren, gewinnt der erste). Wird zuerst ein Narr gespielt, bestimmt die nächste Farbkarte die Farbe. Mit „Vorauswahl“ kannst du eine Karte schon vor deinem Zug antippen; sie wird automatisch gespielt, sobald du dran bist. „Letzter Stich“ zeigt den zuletzt gewonnenen Stich.</p>
+      <h3>Wertung</h3>
+      <p>Richtig getippt: <b>20 Punkte + 10 pro Stich</b>. Falsch getippt: <b>−10 Punkte für jeden Stich Abweichung</b>.</p>
+    </div>
   </div>
 </div>
 

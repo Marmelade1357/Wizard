@@ -24,6 +24,10 @@
   let session = null; // { code, playerId, token, name }
   let latestState = null;
   let myHand = [];
+  let lastTrick = null; // { round, trickNumber, cards, winnerId } - letzter abgeschlossener Stich
+  let prePickedId = null; // vorab gewählte Karte (Vorauswahl-Toggle)
+  let prepickOn = false;
+  try { prepickOn = localStorage.getItem('wizard_prepick') === '1'; } catch (e) { /* optional */ }
   let myLegal = null; // array of legal card ids, or null wenn nicht mein Zug
   let draggingCardId = null; // Karten-ID, die gerade per Drag&Drop gezogen wird
   let prevPhase = null;
@@ -215,7 +219,6 @@
   $('btn-add-bot').addEventListener('click', () => socket.emit('addBot'));
   $('btn-fill-bots').addEventListener('click', () => socket.emit('fillBots'));
   $('btn-start').addEventListener('click', () => socket.emit('startGame'));
-  $('setting-afk-timeout').addEventListener('change', (e) => socket.emit('setAfkTimeoutEnabled', { enabled: e.target.checked }));
   $('input-rounds').addEventListener('change', (e) => {
     socket.emit('setRoundsLimit', { value: e.target.value });
   });
@@ -225,6 +228,20 @@
     show($('scores-modal'));
   });
   $('btn-close-scores-modal').addEventListener('click', () => hide($('scores-modal')));
+  $('btn-show-lasttrick').addEventListener('click', () => {
+    if (!lastTrick || !latestState) return;
+    const wrap = $('lasttrick-cards');
+    wrap.innerHTML = '';
+    lastTrick.cards.forEach((play) => {
+      wrap.appendChild(el('div', { class: 'trick-slot' + (play.playerId === lastTrick.winnerId ? ' winner' : '') }, [
+        renderCardEl(play.card, latestState),
+        el('span', { class: 'played-by', text: playerName(latestState, play.playerId) }),
+      ]));
+    });
+    $('lasttrick-info').textContent = `Stich geht an ${playerName(latestState, lastTrick.winnerId)}.`;
+    show($('lasttrick-modal'));
+  });
+  $('btn-close-lasttrick-modal').addEventListener('click', () => hide($('lasttrick-modal')));
 
   // ---------------------------------------------------------------------
   // Socket events
@@ -250,11 +267,29 @@
   socket.on('yourHand', (data) => {
     myHand = data.hand || [];
     myLegal = data.legalCardIds;
+    if (prePickedId && !myHand.some((c) => c.id === prePickedId)) prePickedId = null;
+    if (prePickedId && myLegal) {
+      // Ich bin dran: vorgewählte Karte automatisch spielen, falls erlaubt.
+      const pick = prePickedId;
+      prePickedId = null;
+      if (myLegal.includes(pick)) {
+        myLegal = null;
+        socket.emit('playCard', { cardId: pick });
+        return;
+      }
+      toast('Vorgewählte Karte ist jetzt nicht erlaubt – bitte neu wählen.');
+    }
     if (latestState) render(latestState);
   });
 
   socket.on('gameState', (state) => {
     latestState = state;
+    if (lastTrick && lastTrick.round !== state.roundNumber) lastTrick = null;
+    if (state.trickResult && state.trickResult.cards && state.trickResult.cards.length) {
+      lastTrick = { round: state.roundNumber, trickNumber: state.trickNumber, cards: state.trickResult.cards, winnerId: state.trickResult.winnerId };
+    }
+    const ltBtn = $('btn-show-lasttrick');
+    if (ltBtn) ltBtn.disabled = !lastTrick;
     render(state);
   });
 
@@ -344,23 +379,6 @@
       roundsDisplay.textContent = `Runden: ${Math.min(state.roundsLimit, state.maxPossibleRounds)}`;
     }
 
-    const settingsBox = $('lobby-settings');
-    const settingsDisplay = $('lobby-settings-display');
-    const afkEnabled = state.afkTimeoutEnabled !== false;
-    if (isHost) {
-      show(settingsBox);
-      hide(settingsDisplay);
-      $('setting-afk-timeout').checked = afkEnabled;
-    } else {
-      hide(settingsBox);
-      if (afkEnabled) {
-        settingsDisplay.textContent = '⏱️ Auto-Zug nach 60s Inaktivität aktiv.';
-        show(settingsDisplay);
-      } else {
-        hide(settingsDisplay);
-      }
-    }
-
     const startBtn = $('btn-start');
     const statusEl = $('lobby-status');
     if (isHost) {
@@ -447,6 +465,9 @@
     const activeId = state.phase === 'bidding' ? state.currentBidderId
       : state.phase === 'playing' ? state.currentTurnId
       : null;
+    const scoreOf = (id) => (state.scores[id] != null ? state.scores[id] : 0);
+    const rankOf = (id) => 1 + state.players.filter((o) => scoreOf(o.id) > scoreOf(id)).length;
+    const anyScore = state.players.some((o) => scoreOf(o.id) !== 0);
     state.players.forEach((p) => {
       const tags = [];
       if (p.isHost) tags.push(el('span', { class: 'tag host', text: 'Host' }));
@@ -468,9 +489,23 @@
           el('span', { class: 'player-name' }, [el('span', { text: p.name }), ...tags]),
           bidLine ? el('div', { class: 'bid-tricks', text: bidLine }) : el('span'),
         ]),
-        el('span', { class: 'score-value', text: String(state.scores[p.id] != null ? state.scores[p.id] : 0) }),
+        el('span', { class: 'score-cell' }, [
+          anyScore ? el('span', { class: 'rank-badge rank-' + rankOf(p.id), title: 'Platzierung', text: rankOf(p.id) === 1 ? '🥇' : `${rankOf(p.id)}.` }) : el('span'),
+          el('span', { class: 'score-value', text: String(scoreOf(p.id)) }),
+        ]),
       ]);
       list.appendChild(li);
+    });
+  }
+
+  const prepickBox = $('toggle-prepick');
+  if (prepickBox) {
+    prepickBox.checked = prepickOn;
+    prepickBox.addEventListener('change', () => {
+      prepickOn = prepickBox.checked;
+      if (!prepickOn) prePickedId = null;
+      try { localStorage.setItem('wizard_prepick', prepickOn ? '1' : '0'); } catch (e) { /* optional */ }
+      if (latestState) renderHandBar(latestState);
     });
   }
 
@@ -484,7 +519,15 @@
     const canPlay = state.phase === 'playing' && state.currentTurnId === myId();
     myHand.forEach((card) => {
       const isLegal = canPlay && myLegal && myLegal.includes(card.id);
-      const cardEl = renderCardEl(card, state, { extraClass: canPlay ? (isLegal ? '' : 'disabled') : 'disabled' });
+      const canPrepick = prepickOn && !canPlay && ['playing', 'trickresult'].includes(state.phase);
+      const cls = canPlay ? (isLegal ? '' : 'disabled') : (canPrepick ? 'prepickable' : 'disabled');
+      const cardEl = renderCardEl(card, state, { extraClass: cls + (canPrepick && prePickedId === card.id ? ' prepicked' : '') });
+      if (canPrepick) {
+        cardEl.addEventListener('click', () => {
+          prePickedId = prePickedId === card.id ? null : card.id;
+          if (latestState) renderHandBar(latestState);
+        });
+      }
       if (isLegal) {
         const playThisCard = () => {
           myLegal = null;
@@ -540,7 +583,20 @@
 
   function renderBiddingPhase(state) {
     const nodes = [];
-    if (state.currentBidderId === myId()) {
+    const submitted = state.bidOrder.filter((id) => state.bids[id] !== null && state.bids[id] !== undefined);
+    const mine = state.currentBidderId === myId();
+    const bidsList = () => el('ul', { class: 'bids-so-far' + (mine ? ' highlight' : '') }, submitted.map((id) => el('li', {}, [
+      el('span', { text: playerName(state, id) }),
+      el('span', { class: 'bid-chip', text: String(state.bids[id]) }),
+    ])));
+    if (mine) {
+      // Die Tipps vor mir stehen bewusst GANZ OBEN und sind hervorgehoben -
+      // genau sie braucht man für die eigene Vorhersage.
+      const sum = submitted.reduce((a, id) => a + state.bids[id], 0);
+      if (submitted.length) {
+        nodes.push(el('p', { class: 'bids-before-title', text: `Tipps vor dir: zusammen ${sum} von ${state.cardsThisRound} Stich${state.cardsThisRound === 1 ? '' : 'en'}` }));
+        nodes.push(bidsList());
+      }
       const btns = [];
       for (let i = 0; i <= state.cardsThisRound; i++) {
         const b = el('button', { class: 'bid-btn', text: String(i) });
@@ -551,15 +607,7 @@
       nodes.push(el('div', { class: 'bid-choice' }, btns));
     } else {
       nodes.push(el('p', { class: 'waiting-note', text: `${playerName(state, state.currentBidderId)} sagt gerade vorher …` }));
-    }
-
-    const submitted = state.bidOrder.filter((id) => state.bids[id] !== null && state.bids[id] !== undefined);
-    if (submitted.length) {
-      const ul = el('ul', { class: 'bids-so-far' }, submitted.map((id) => el('li', {}, [
-        el('span', { text: playerName(state, id) }),
-        el('span', { text: String(state.bids[id]) }),
-      ])));
-      nodes.push(ul);
+      if (submitted.length) nodes.push(bidsList());
     }
     setPhase('Vorhersage', nodes);
   }
@@ -709,4 +757,145 @@
     table.appendChild(tbody);
     wrap.appendChild(table);
   }
+
+  // ---------------------------------------------------------------------
+  // Komfort: gemerkter Name, Enter-Taste, Einladungslink, Warte-Hinweis,
+  // Barrierefreiheits-Attribute
+  // ---------------------------------------------------------------------
+  (function comfort() {
+    const NAME_KEY = 'spiele_name';
+    const SKIP_AFTER_MS = 20000;
+    const q = (id) => document.getElementById(id);
+    const lsGet = (k) => { try { return localStorage.getItem(k); } catch (e) { return null; } };
+    const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (e) { /* optional */ } };
+
+    // --- Name merken ---
+    const cn = q('create-name'); const jn = q('join-name'); const jc = q('join-code');
+    const cached = lsGet(NAME_KEY);
+    [cn, jn].forEach((inp) => {
+      if (!inp) return;
+      if (cached && !inp.value) inp.value = cached;
+      inp.addEventListener('input', () => { const v = inp.value.trim(); if (v) { lsSet(NAME_KEY, v); [cn, jn].forEach((o) => { if (o && o !== inp) o.value = inp.value; }); } });
+      inp.setAttribute('autocomplete', 'nickname');
+      inp.setAttribute('autocapitalize', 'words');
+      inp.setAttribute('aria-label', 'Dein Name');
+      inp.setAttribute('enterkeyhint', 'go');
+    });
+    if (jc) {
+      jc.setAttribute('autocomplete', 'off'); jc.setAttribute('autocapitalize', 'characters');
+      jc.setAttribute('autocorrect', 'off'); jc.setAttribute('spellcheck', 'false');
+      jc.setAttribute('aria-label', 'Raum-Code'); jc.setAttribute('enterkeyhint', 'go');
+      jc.addEventListener('input', () => { jc.value = jc.value.toUpperCase().replace(/[^A-Z0-9]/g, ''); });
+    }
+
+    // --- Enter sendet ab ---
+    if (cn) cn.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); q('btn-create').click(); } });
+    if (jn) jn.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter') return;
+      e.preventDefault();
+      if (jc && !jc.value.trim()) jc.focus(); else q('btn-join').click();
+    });
+    if (jc) jc.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); q('btn-join').click(); } });
+
+    // --- Beitritt per Link (?code=AB12) ---
+    try {
+      const urlCode = (new URLSearchParams(window.location.search).get('code') || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 4);
+      if (urlCode && jc) {
+        try {
+          const s = JSON.parse(localStorage.getItem(SESSION_KEY) || 'null');
+          if (s && s.code !== urlCode) localStorage.removeItem(SESSION_KEY);
+        } catch (e) { /* ignore */ }
+        jc.value = urlCode;
+        const tabBtn = document.querySelector('.tab-btn[data-tab="join"]');
+        if (tabBtn) tabBtn.click();
+        const target = (jn && !jn.value.trim()) ? jn : q('btn-join');
+        if (target) setTimeout(() => target.focus(), 50);
+      }
+    } catch (e) { /* ignore */ }
+
+    // --- Einladungslink teilen ---
+    const share = q('btn-share-link');
+    if (share) {
+      share.addEventListener('click', async () => {
+        const code = (q('lobby-code').textContent || '').trim();
+        if (!/^[A-Z0-9]{4}$/.test(code)) return;
+        const url = window.location.origin + window.location.pathname + '?code=' + code;
+        const title = document.title.replace(/ – Online$/, '');
+        try {
+          if (navigator.share) { await navigator.share({ title, text: `Komm ins Spiel: ${title} – Raum ${code}`, url }); return; }
+        } catch (e) { if (e && e.name === 'AbortError') return; }
+        try { await navigator.clipboard.writeText(url); toast('Link kopiert – jetzt einfach verschicken.'); }
+        catch (e) { window.prompt('Link zum Kopieren:', url); }
+      });
+    }
+
+    // --- Warte-Hinweis + "Überspringen" ---
+    const gameScreen = q('screen-game');
+    let banner = null; let bText = null; let bBtn = null;
+    let waiting = null; let recvAt = 0; let lastState = null;
+    if (gameScreen) {
+      banner = document.createElement('div');
+      banner.id = 'wait-banner'; banner.className = 'wait-banner hidden';
+      banner.setAttribute('role', 'status'); banner.setAttribute('aria-live', 'polite');
+      bText = document.createElement('span'); bText.id = 'wait-text';
+      bBtn = document.createElement('button'); bBtn.id = 'btn-skip-turn'; bBtn.type = 'button';
+      bBtn.className = 'btn secondary small hidden'; bBtn.textContent = '⏭ Überspringen';
+      bBtn.addEventListener('click', () => { socket.emit('skipTurn'); bBtn.classList.add('hidden'); });
+      banner.appendChild(bText); banner.appendChild(bBtn);
+      const header = gameScreen.querySelector('header');
+      if (header) header.after(banner); else gameScreen.prepend(banner);
+    }
+    function paintWait() {
+      if (!banner) return;
+      if (!waiting || !lastState || !waiting.ids.length || waiting.ids.includes(myId())) { banner.classList.add('hidden'); return; }
+      const sec = Math.floor((waiting.elapsedMs + (Date.now() - recvAt)) / 1000);
+      if (sec < 8) { banner.classList.add('hidden'); return; }
+      const names = waiting.ids.map((id) => { const p = (lastState.players || []).find((pl) => pl.id === id); return p ? p.name : '?'; }).join(', ');
+      bText.textContent = `⏳ ${names} – wartet seit ${sec} s`;
+      banner.classList.remove('hidden');
+      const canSkip = sec * 1000 >= SKIP_AFTER_MS && (lastState.hostId === myId() || waiting.ids.includes(lastState.hostId));
+      bBtn.classList.toggle('hidden', !canSkip);
+    }
+    socket.on('gameState', (state) => {
+      lastState = state;
+      const w = state.waiting || null;
+      if (w) { waiting = w; recvAt = Date.now(); } else { waiting = null; }
+      paintWait();
+    });
+    setInterval(paintWait, 1000);
+
+    // --- Barrierefreiheit ---
+    const toastEl = q('toast');
+    if (toastEl) { toastEl.setAttribute('role', 'status'); toastEl.setAttribute('aria-live', 'polite'); }
+    document.querySelectorAll('.modal').forEach((m) => {
+      m.setAttribute('role', 'dialog'); m.setAttribute('aria-modal', 'true');
+      const h = m.querySelector('h2'); if (h) m.setAttribute('aria-label', h.textContent.trim());
+    });
+    document.querySelectorAll('.modal-close').forEach((b) => b.setAttribute('aria-label', 'Schließen'));
+    const tabs = document.querySelector('.tabs');
+    if (tabs) {
+      tabs.setAttribute('role', 'tablist');
+      const syncTabs = () => tabs.querySelectorAll('.tab-btn').forEach((b) => b.setAttribute('aria-selected', b.classList.contains('active') ? 'true' : 'false'));
+      tabs.querySelectorAll('.tab-btn').forEach((b) => b.setAttribute('role', 'tab'));
+      document.querySelectorAll('.tab-panel').forEach((p) => p.setAttribute('role', 'tabpanel'));
+      new MutationObserver(syncTabs).observe(tabs, { subtree: true, attributes: true, attributeFilter: ['class'] });
+      syncTabs();
+    }
+    const labelIf = (id, txt) => { const e = q(id); if (e && !e.getAttribute('aria-label')) e.setAttribute('aria-label', txt); };
+    labelIf('btn-toggle-sound', 'Ton an oder aus'); labelIf('btn-sound', 'Ton an oder aus'); labelIf('btn-mute', 'Ton an oder aus');
+    labelIf('btn-leave-lobby', 'Raum verlassen'); labelIf('btn-leave-game', 'Spiel verlassen');
+    const lc = q('lobby-code'); if (lc) lc.setAttribute('aria-label', 'Raum-Code');
+  })();
+
+  // Regeln-Dialog
+  (function rules() {
+    const m = document.getElementById('rules-modal');
+    if (!m) return;
+    ['btn-show-rules', 'btn-show-rules-lobby'].forEach((id) => {
+      const b = document.getElementById(id);
+      if (b) b.addEventListener('click', () => m.classList.remove('hidden'));
+    });
+    document.getElementById('btn-close-rules-modal').addEventListener('click', () => m.classList.add('hidden'));
+    m.addEventListener('click', (e) => { if (e.target === m) m.classList.add('hidden'); });
+  })();
 })();

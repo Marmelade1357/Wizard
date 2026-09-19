@@ -401,3 +401,30 @@ input:focus { outline: 2px solid var(--purple-bright); }
   .hand-list .pcard { width: 98px; height: 147px; }
   .trick-area { min-height: 130px; padding: 20px 16px; }
 }
+
+/* --- Warte-Hinweis (Host kann überspringen) --- */
+.wait-banner{display:flex;align-items:center;justify-content:center;gap:10px;flex-wrap:wrap;margin:6px auto;padding:8px 12px;max-width:640px;border-radius:10px;background:rgba(255,190,60,.16);border:1px solid rgba(255,190,60,.5);color:inherit;font-size:.92rem;text-align:center}
+.wait-banner.hidden{display:none}
+#btn-share-link{margin-top:6px}
+
+/* --- Vorauswahl (Karte vor dem eigenen Zug wählen) --- */
+.hand-bar-label{display:flex;justify-content:center;align-items:center;gap:10px;flex-wrap:wrap}
+.prepick-toggle{display:inline-flex;align-items:center;gap:6px;font-size:.8rem;font-weight:600;text-transform:none;letter-spacing:0;color:var(--text);cursor:pointer;white-space:nowrap;padding:3px 10px;border:1px solid var(--border);border-radius:999px}
+.prepick-toggle input{margin:0}
+.hand-list{padding-top:6px}
+.pcard.prepicked{box-shadow:0 0 0 4px #ffd34d, 0 0 14px 2px rgba(255,211,77,.6)}
+.pcard.prepickable{cursor:pointer}
+
+/* --- Rangfolge, Tipps vor mir, letzter Stich --- */
+.score-cell { display: inline-flex; align-items: center; gap: 6px; }
+.rank-badge { font-size: .8rem; color: var(--text-dim); min-width: 1.6em; text-align: right; }
+.bids-so-far.highlight { margin: 0 0 12px; padding: 8px; border: 2px solid var(--gold-bright); border-radius: 10px; background: rgba(255,211,77,.08); }
+.bids-before-title { margin: 0 0 6px; font-weight: 700; color: var(--gold-bright); }
+.bid-chip { font-weight: 800; color: var(--gold-bright); min-width: 1.6em; text-align: center; }
+#lasttrick-cards { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-top: 10px; }
+
+/* --- Regeln-Dialog --- */
+.rules-btn { width: 100%; margin-top: 10px; }
+.rules-modal-content { max-width: 640px; max-height: 86vh; overflow: auto; position: relative; }
+.rules-text h3 { color: var(--gold-bright, #ffdd88); margin-top: 16px; }
+.rules-text p { line-height: 1.5; }
