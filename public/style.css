@@ -472,18 +472,18 @@ input:focus { outline: 2px solid var(--purple-bright); }
   outline-offset: 2px;
 }
 .hand-list { padding-top: 6px; }
-/* Vorgewählte Karte: kräftiger Goldrahmen. Vorwählbare (aber noch nicht
-   gewählte) Karten: dezenter gestrichelter Rahmen als Hinweis, dass ein
-   Klick sie vormerkt - nur Karten, die im aktuellen Stich auch wirklich
-   erlaubt wären, bekommen diesen Hinweis (siehe currentlyLegalCardIds()
-   in client.js). */
+/* Vorwählbare (aber noch nicht gewählte) Karten sehen bewusst GENAUSO aus
+   wie spielbare Karten, wenn man selbst am Zug ist - ganz normal, ohne
+   Sonderrahmen. Nur die tatsächlich vorgewählte Karte bekommt einen
+   kräftigen Goldrahmen als Auswahl-Hinweis. Nicht vorwählbare (weil gerade
+   nicht erlaubte) Karten bekommen stattdessen ganz normal die Klasse
+   "disabled" - genau dieselbe Abdunkelung/Entsättigung wie bei nicht
+   spielbaren Karten im eigenen Zug (siehe .hand-list .pcard.disabled oben).
+   Welche Karten das sind, berechnet currentlyLegalCardIds() in client.js. */
 .pcard.prepickable {
   cursor: pointer;
-  outline: 2px dashed rgba(255, 211, 77, 0.55);
-  outline-offset: 2px;
 }
 .pcard.prepicked {
-  outline: none;
   box-shadow: 0 0 0 4px #ffd34d, 0 0 14px 2px rgba(255, 211, 77, .6);
 }
 
