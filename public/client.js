@@ -509,6 +509,34 @@
     });
   }
 
+  // Ermittelt die Farbe, die im laufenden Stich bedient werden muss - spiegelt
+  // exakt die serverseitige ledSuitOfTrick() aus server.js. undefined = noch
+  // offen (bisher nur Narren gespielt), null = für immer offen (ein Zauberer
+  // wurde gespielt, bevor eine Farbe feststand).
+  function ledSuitOfTrick(trick) {
+    for (const play of trick) {
+      if (play.card.kind === 'suit') return play.card.suit;
+      if (play.card.kind === 'wizard') return null;
+    }
+    return undefined;
+  }
+
+  // Welche Karten der eigenen Hand wären JETZT, im aktuell laufenden Stich,
+  // wirklich erlaubt? Spiegelt legalCardsFor() aus server.js clientseitig,
+  // weil der Server legalCardIds nur schickt, wenn man tatsächlich am Zug
+  // ist - für die Vorauswahl (vor dem eigenen Zug) gibt es diese Daten sonst
+  // nicht. Nutzt ausschließlich bereits öffentliche Daten (state.currentTrick
+  // + eigene Hand), keine Serveranfrage nötig.
+  function currentlyLegalCardIds(state) {
+    const led = ledSuitOfTrick(state.currentTrick || []);
+    if (led === null || led === undefined) return myHand.map((c) => c.id);
+    const hasLed = myHand.some((c) => c.kind === 'suit' && c.suit === led);
+    if (!hasLed) return myHand.map((c) => c.id);
+    return myHand
+      .filter((c) => (c.kind === 'suit' && c.suit === led) || c.kind === 'wizard' || c.kind === 'jester')
+      .map((c) => c.id);
+  }
+
   function renderHandBar(state) {
     const bar = $('hand-bar');
     const showBar = ['trumpchoice', 'bidding', 'playing', 'trickresult'].includes(state.phase) && myHand.length > 0;
@@ -517,9 +545,22 @@
     const list = $('hand-list');
     list.innerHTML = '';
     const canPlay = state.phase === 'playing' && state.currentTurnId === myId();
+    // Vorauswahl ist nur während der aktiven Stichphase sinnvoll einschränkbar:
+    // im trickresult zeigt state.currentTrick noch den GERADE ABGESCHLOSSENEN
+    // Stich (wird erst nach TRICK_RESULT_DELAY_MS geleert), das würde also die
+    // Legalität für den NÄCHSTEN Stich falsch berechnen. Dort bleibt der
+    // Vorauswahl-Klick daher deaktiviert.
+    const prepickEligiblePhase = prepickOn && !canPlay && state.phase === 'playing';
+    const legalPrepickIds = prepickEligiblePhase ? currentlyLegalCardIds(state) : [];
+    // Wurde die vorgewählte Karte inzwischen (weil andere Spieler die Farbe im
+    // Stich vorgegeben haben) illegal, verwerfen wir die Vorauswahl wieder -
+    // sie müsste sonst neu bestätigt werden.
+    if (prePickedId && prepickEligiblePhase && !legalPrepickIds.includes(prePickedId)) {
+      prePickedId = null;
+    }
     myHand.forEach((card) => {
       const isLegal = canPlay && myLegal && myLegal.includes(card.id);
-      const canPrepick = prepickOn && !canPlay && ['playing', 'trickresult'].includes(state.phase);
+      const canPrepick = prepickEligiblePhase && legalPrepickIds.includes(card.id);
       const cls = canPlay ? (isLegal ? '' : 'disabled') : (canPrepick ? 'prepickable' : 'disabled');
       const cardEl = renderCardEl(card, state, { extraClass: cls + (canPrepick && prePickedId === card.id ? ' prepicked' : '') });
       if (canPrepick) {
