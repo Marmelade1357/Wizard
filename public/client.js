@@ -561,7 +561,16 @@
     myHand.forEach((card) => {
       const isLegal = canPlay && myLegal && myLegal.includes(card.id);
       const canPrepick = prepickEligiblePhase && legalPrepickIds.includes(card.id);
-      const cls = canPlay ? (isLegal ? '' : 'disabled') : (canPrepick ? 'prepickable' : 'disabled');
+      // "disabled" (abgedunkelt/entsättigt) gibt es NUR, wenn gerade wirklich
+      // eine Auswahl mit Einschränkung angezeigt wird (eigener Zug, oder
+      // aktive Vorauswahl) - nicht einfach nur, weil man wartet und die
+      // Vorauswahl aus ist. Sonst wäre die eigene Hand die ganze Zeit, in der
+      // man auf seinen Zug wartet, kaum lesbar - das war der eigentliche
+      // Sinn der Vorauswahl-Karten-Leiste (die eigene Hand jederzeit sehen).
+      let cls;
+      if (canPlay) cls = isLegal ? '' : 'disabled';
+      else if (prepickEligiblePhase) cls = canPrepick ? 'prepickable' : 'disabled';
+      else cls = '';
       const cardEl = renderCardEl(card, state, { extraClass: cls + (canPrepick && prePickedId === card.id ? ' prepicked' : '') });
       if (canPrepick) {
         cardEl.addEventListener('click', () => {
